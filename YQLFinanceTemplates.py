@@ -1,6 +1,5 @@
 import string	
 
-
 #For getting the ticker list
 SECTOR_LIST_URL = (
                 "https://query.yahooapis.com/v1/public/yql?"
@@ -14,7 +13,7 @@ COMPANY_BY_INDUSTRY_TEMPLATE_URL = (
 
 # For Balance Sheet, Income Statement, and Cash Flow Statement
 BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL =(
-				"https://query.yahooapis.com/v1/public/yql?"
+                "https://query.yahooapis.com/v1/public/yql?"
             	"q=SELECT%20*%20FROM%20yahoo.finance.<STATEMENT_NAME_HERE>"
             	"%20WHERE%20symbol%20in%20(<SYMBOL_LIST_HERE>)"
             	"&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
@@ -176,4 +175,5 @@ def createFriendlyURL(  template,
     templateURL = templateURL.replace('\t','')    
     return templateURL
 
-DBFileName = './database/financialData.db'
+FinDBFileName = './database/financialData.db'
+TestDBFileName = './database/testFinancialData.db'
