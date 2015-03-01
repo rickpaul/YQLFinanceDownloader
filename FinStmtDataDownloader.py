@@ -1,329 +1,252 @@
-
 import sqlite3 as sq
 import urllib2
 import json
 import time
-import string
 import pprint
-import YQLFinanceTemplates as tmplts
+import YQLFinanceTemplates as YQLtmplts
+import FinStmtDatabaseHelper as finDB
 
+ONE_MONTH = 60*60*24*30
 
-class FinStmtDataDownloader:
+TIME_BETWEEN_COMPANY_LIST_UPDATES = ONE_MONTH
+COMPANY_LIST_INDUSTRY_UPDATE_LIMIT = 10
 
-	ONE_MONTH = 60*60*24*30
-
-	TIME_BETWEEN_COMPANY_LIST_UPDATES = ONE_MONTH
-	COMPANY_LIST_INDUSTRY_UPDATE_LIMIT = 10
-
-	def __init__(self):
-		pass
-
-	#Download Income Statement, Balance Sheet, and Cash Flow Statement
-	def downloadBasicFinancialStatementData(self, symbolList, statementName):
-	    # Read Data from Yahoo as JSON query
-	    url = tmplts.createFriendlyURL(tmplts.BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL,statementName = statementName,symbolList = symbolList)
-	    raw_data = urllib2.urlopen(url).read()
-	    queryResult = json.loads(raw_data)['query']
-	    if queryResult['count'] != len(symbolList):
-	        #Throw Error
-	        raise NotImplementedError()
-	        pass
-	    # Find Expected Data Points
-	    expectedData = tmplts.getExpectedContentKeys(statementName)
-	    # Get Specific Query Data (strip metadata about query)
-	    if queryResult['count'] == 1:
-	        queryData = [queryResult['results'][statementName]]
-	    else:
-	        queryData = queryResult['results'][statementName]
-	    # Parse Query Results
-	    foundData = []
-	    for symbolData in queryData:
-	        # Parse Query Results / Find Symbol
-	        symbol = symbolData['symbol']
-	        # Parse Query Results / Check Timeframe
-	        if symbolData['timeframe'] != 'quarterly':
-	            warnings.warn(symbol + ' does not have quarterly data')
-	            raise NotImplementedError()
-	        # Parse Query Results / Check if Data Exists
-	        if 'statement' not in symbolData:
-	            warnings.warn(symbol + ' does not have '+ statementName +' data')
-	            raise NotImplementedError()
-	            continue
-	        # Parse Query Results / Read Data by Period
-	        for periodData in symbolData['statement']:
-	            # Parse Query Results / Read Data by Period / Read Period
-	            period = periodData['period']
-	            # Parse Query Results / Read Data by Period / Read Expected Data
-	            for dataPoint in expectedData:
-	                # Parse Query Results / Read Data by Period / Read Expected Data
-	                if dataPoint in periodData:
-	                    value = periodData[dataPoint]['content']
-	                    if value == '-':
-	                        value = 0
-	                    else:
-	                        value = float(value)
-	                else:
-	                    warnings.warn(symbol + ' does not have '+ dataPoint +' data')
-	                    value = 'NF'
-	                # Parse Query Results / Read Data by Period / Write Data to List
-	                entry = {   'symbol' : symbol,
-	                            'period' : period,
-	                            'dataPoint' : dataPoint, 
-	                            'value' : value}
-	                foundData.append(entry)
-	            # Parse Query Results / Read Data by Period / Output if Extra Data Found
-	            for dataPoint in (periodData.keys()):
-	                if dataPoint not in (expectedData.keys()+['period']):
-	            		warnings.warn(dataPoint + ' (from ' + symbol + ') not found in ' + statementName + ' expected data list')
-	            		raise NotImplementedError()
-            			continue
-	    return {statementName: statementName,
-	    		data: foundData,
-	    		retrievedTime: int(time.time())}
+#Download Income Statement, Balance Sheet, and Cash Flow Statement
+def downloadBasicFinancialStatementData(symbolList, statementName):
+    # Read Data from Yahoo as JSON query
+    url = YQLtmplts.createFriendlyURL(YQLtmplts.BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL,statementName = statementName,symbolList = symbolList)
+    raw_data = urllib2.urlopen(url).read()
+    queryResult = json.loads(raw_data)['query']
+    if queryResult['count'] != len(symbolList):
+        raise NotImplementedError #Throw better error
+        pass
+    # Find Expected Data Points
+    expectedData = YQLtmplts.getExpectedContentKeys(statementName)
+    # Get Specific Query Data (strip metadata about query)
+    if queryResult['count'] == 1:
+        queryData = [queryResult['results'][statementName]]
+    else:
+        queryData = queryResult['results'][statementName]
+    # Parse Query Results
+    foundData = []
+    for symbolData in queryData:
+        # Parse Query Results / Find Symbol
+        symbol = symbolData['symbol']
+        # Parse Query Results / Check Timeframe
+        if symbolData['timeframe'] != 'quarterly':
+            warnings.warn(symbol + ' does not have quarterly data')
+            raise NotImplementedError
+        # Parse Query Results / Check if Data Exists
+        if 'statement' not in symbolData:
+            warnings.warn(symbol + ' does not have '+ statementName +' data')
+            raise NotImplementedError
+            continue
+        # Parse Query Results / Read Data by Period
+        for periodData in symbolData['statement']:
+            # Parse Query Results / Read Data by Period / Read Period
+            period = periodData['period']
+            # Parse Query Results / Read Data by Period / Read Expected Data
+            for dataPoint in expectedData:
+                # Parse Query Results / Read Data by Period / Read Expected Data
+                if dataPoint in periodData:
+                    value = periodData[dataPoint]['content']
+                    if value == '-':
+                        value = 0
+                    else:
+                        value = float(value)
+                else:
+                    warnings.warn(symbol + ' does not have '+ dataPoint +' data')
+                    value = 'NF'
+                # Parse Query Results / Read Data by Period / Write Data to List
+                entry = {   'symbol' : symbol,
+                            'period' : period,
+                            'dataPoint' : dataPoint, 
+                            'value' : value}
+                foundData.append(entry)
+            # Parse Query Results / Read Data by Period / Output if Extra Data Found
+            for dataPoint in (periodData.keys()):
+                if dataPoint not in (expectedData.keys()+['period']):
+            		warnings.warn(dataPoint + ' (from ' + symbol + ') not found in ' + statementName + ' expected data list')
+            		raise NotImplementedError
+            		continue
+    return {statementName: statementName,
+    		data: foundData,
+    		retrievedTime: int(time.time())}
 
 ######################### Completed Code Below
-	
-	########################################Code to Fill Sector and Industry Database
-	def fillSectorAndIndustryDatabase(self):
-		# Get Sector/Industry Data from Yahoo!
-		print "Get Sector/Industry Data from Yahoo!"
-		writeRows = self.from_YQL_getSectorAndIndustryList()
-		# Display Data Retrieval Success
-		print "\tRetrieved " + str(len(writeRows)) + " sectors' data. Sectors are as follows:"
+
+########################################Code to Fill Sector and Industry Database
+def fillSectorAndIndustryDatabase(DBFileName=YQLtmplts.FinDBFileName, verbose=False):
+	print "Using Database in " + DBFileName
+	# Get Sector/Industry Data from Yahoo!
+	print "Getting Yahoo!'s' List of all Sectors/Industries..."
+	writeRows = from_YQL_getSectorAndIndustryList()
+	# Display Data Retrieval Success
+	print "\tRetrieved " + str(len(writeRows)) + " sectors' data.",
+	if verbose:
+		print "\tSectors are as follows:"
 		pprint.pprint(writeRows)
-		# Put Sector/Industry Data into Database
-		print "Put Sector/Industry Data into Database"
-		self.to_DB_fillSectorAndIndustryDatabase(writeRows)
+	# Put Sector/Industry Data into Database
+	print "Putting Retrieved Sector/Industry Data into Database"
+	to_DB_fillSectorAndIndustryDatabase(writeRows, DBFileName=DBFileName, verbose=verbose)
 
-	########################################Code to Fill Sector and Industry Database / Get Data from Yahoo!
-	def from_YQL_getSectorAndIndustryList(self):
-		# Read Data from Yahoo as JSON query
-		url = tmplts.createFriendlyURL(tmplts.SECTOR_LIST_URL)
-		raw_data = urllib2.urlopen(url).read()	
-		queryResult = json.loads(raw_data)['query']['results']['sector']
-		# Parse Query Results
-		try:
-			writeRows = []
-			for sector in queryResult:
-				# Parse Query Results / Read Sector / Read Sector Name
-				sectorName = '"' + sector['name'] + '"'
-				# Parse Query Results / Read Sector / Deal with Single Entries
-				if type(sector['industry']) is dict:
-					sector['industry'] = [sector['industry']]
-				# Parse Query Results / Read Sector / Read Industry
-				for industry in sector['industry']:
-					# Parse Query Results / Read Sector / Read Industry / Write Row Dictionary to List
-					industryID = industry['id']
-					industryName = '"' + industry['name'] + '"'
-					writeRows.append({'sectorName':sectorName,'industryID':industryID, 'industryName':industryName})
-			return writeRows
-		except:
-			pprint.pprint(queryResult)
-			raise
-
-	########################################Code to Fill Sector and Industry Database / Push Data into Database
-	def to_DB_fillSectorAndIndustryDatabase(self, writeRows, verbose = False):
-		numSuccesses = 0
-		# Open Database Connection
-		conn = sq.connect(tmplts.DBFileName)
-		c = conn.cursor()
-		try:
-			# Iterate over Retrieved Data
-			for row in writeRows:
-				# Iterate over Retrieved Data / Create Values Insert
-				valueString = '( ' + string.join([row['industryID'],row['industryName'],row['sectorName']],',') + ' )'
-				# Iterate over Retrieved Data / Create Data Insertion Line
-				statement = [	'INSERT INTO T_SECTOR_INDUSTRY',
-								'( int_industry_id, txt_industry_name, txt_sector_name )',
-								'VALUES',
-								valueString
-				]
-				statement = string.join(statement, ' ') + ';'
-				# Iterate over Retrieved Data / Perform Database Insert
-				numSuccesses += self.commitDBStatement(conn, c, statement, verbose=verbose)[0]
-			# Display DB Insertion Statistics
-			print "\tSuccessfully inserted " + str(numSuccesses) + " sectors' data."
-			print "\tFailed to Insert " + str((len(writeRows) - numSuccesses)) + " sectors' data."
-		finally:
-			# Close Database Connection
-			conn.close()
-
-	########################################Code to Fill Company Ticker Database
-	def fillTickerDatabase(self, industryUpdateLimit=COMPANY_LIST_INDUSTRY_UPDATE_LIMIT, verbose=False):
-		# Grab a few Industries to Update
-		UpdateableIndustries = self.from_DB_getUpdateableIndustryList(updateableTimeLimit=self.TIME_BETWEEN_COMPANY_LIST_UPDATES)
-		print 'There are ' + str(len(UpdateableIndustries)) + ' sectors that need updating.'
-		UpdateableIndustries = UpdateableIndustries[0:industryUpdateLimit]
-		print 'This update will update the following industry IDs: ' + str(UpdateableIndustries)
-		
-		# Open DB Connection
-		conn = sq.connect(tmplts.DBFileName)
-		c = conn.cursor()
-		try:
-			tickerTableInsertStatement = (	'INSERT INTO T_TICKER '
-											'(txt_ticker) '
-											'VALUES '
-											'(<TICKER_HERE>);')
-			stockInfoInsertStatement = (	'INSERT INTO T_STOCK_INFORMATION '
-											'(txt_ticker, txt_company_name, int_industry_id) ' 
-											'VALUES '
-											'(<TICKER_HERE>, <NAME_HERE>, <INDUSTRY_ID_HERE>);')
-			updateIndustryReadTimeStatement = (	'UPDATE T_SECTOR_INDUSTRY SET '
-												'dt_last_accessed = <TIME_HERE> ' 
-												'WHERE '
-												'int_industry_id = <INDUSTRY_ID_HERE>;')
-			now = str(int(time.time()))
-			for industryID in UpdateableIndustries:
-				#CONSIDER: You can get them all at once, IF you can find a way to update updateable times individually
-				tickerSuccess = True
-				stockInfoSuccess = True
-				writeRows = self.from_YQL_getCompanyNamesByIndustry(UpdateableIndustries)
-				if len(writeRows == 0):
-					updateIndustryReadTimeStatement_tmp = updateIndustryReadTimeStatement.replace('<INDUSTRY_ID_HERE>', str(industryID))
-					updateIndustryReadTimeStatement_tmp = updateIndustryReadTimeStatement_tmp.replace('<TIME_HERE>', str(now))
-					if self.commitDBStatement(conn, c, updateIndustryReadTimeStatement_tmp, verbose=verbose)[0]:
-						print (	'Successfully added time stamp of read for Industry ' + 
-								str(industryID) + 
-								' (' + row['industryName'] + 
-								') to Ticker and StockInfo Tables')
-					continue
-				for row in writeRows:
-					tickerTableInsertStatement_tmp = tickerTableInsertStatement.replace('<TICKER_HERE>', row['ticker'])
-					stockInfoInsertStatement_tmp = stockInfoInsertStatement.replace('<TICKER_HERE>', row['ticker'])
-					stockInfoInsertStatement_tmp = stockInfoInsertStatement_tmp.replace('<NAME_HERE>', row['companyName'])
-					stockInfoInsertStatement_tmp = stockInfoInsertStatement_tmp.replace('<INDUSTRY_ID_HERE>', str(industryID)) 
-					# Some companies are in multiple industries, requiring some ugly code
-					# TODO: Clean up! Split into inserting tickers and inserting stockInfo
-					# TODO: Clean up! Check if the UNIQUE constraint will fail before adding!
-					successStatement = 	self.commitDBStatement(conn, c, tickerTableInsertStatement_tmp, verbose=verbose)[0]
-					tickerSuccess = 	(tickerSuccess and
-										(successStatement[0] or
-										('UNIQUE constraint failed' in successStatement[1])))
-					successStatement = 	self.commitDBStatement(conn, c, stockInfoInsertStatement_tmp, verbose=verbose)[0]
-					stockInfoSuccess = 	(stockInfoSuccess and
-										(successStatement[0] or
-										('UNIQUE constraint failed' in successStatement[1])))
-				#TODO: Update updateableTime
-				if tickerSuccess and stockInfoSuccess:
-					print (	'Successfully added companies from Industry ' + 
-							str(industryID) + 
-							' (' + row['industryName'] + 
-							') to Ticker and StockInfo Tables)')
-					updateIndustryReadTimeStatement_tmp = updateIndustryReadTimeStatement.replace('<INDUSTRY_ID_HERE>', str(industryID))
-					updateIndustryReadTimeStatement_tmp = updateIndustryReadTimeStatement_tmp.replace('<TIME_HERE>', str(now))
-					if self.commitDBStatement(conn, c, updateIndustryReadTimeStatement_tmp, verbose=verbose)[0]:
-						print (	'Successfully added time stamp of read for Industry ' + 
-								str(industryID) + 
-								' (' + row['industryName'] + 
-								') to Ticker and StockInfo Tables')
-
-		finally:
-			# Close DB Connection
-			conn.close()
-
-	########################################Code to Fill Company Ticker Database / Find industries with non-recent updates
-	def from_DB_getUpdateableIndustryList(self,updateableTimeLimit=TIME_BETWEEN_COMPANY_LIST_UPDATES):
-		# Open Database Connection
-		conn = sq.connect(tmplts.DBFileName)
-		c = conn.cursor()
-		try:
-			# Get Time Delay
-			updateableTime = int(time.time()) - updateableTimeLimit;
-			getCountCommand = 'select int_industry_id from T_SECTOR_INDUSTRY where dt_last_accessed < ' + str(updateableTime)
-			c.execute(getCountCommand)
-			IndustryList = c.fetchall()
-			# Flatten List
-			IndustryList = [record[0] for record in IndustryList]
-			# Return Data
-			return IndustryList
-		# Close Database Connection
-		finally:
-			conn.close()
-		
-
-	########################################Code to Fill Company Ticker Database / Find companies belonging to each industry
-	def from_YQL_getCompanyNamesByIndustry(self, idList):
-		# Read Data from Yahoo as JSON query
-		url = tmplts.createFriendlyURL(tmplts.COMPANY_BY_INDUSTRY_TEMPLATE_URL, idList = idList)
-		raw_data = urllib2.urlopen(url).read()	
-		queryResult = json.loads(raw_data)['query']['results']['industry']
+########################################Code to Fill Sector and Industry Database / Get Data from Yahoo!
+def from_YQL_getSectorAndIndustryList():
+	# Get Sector and Industry List from Yahoo!
+	url = YQLtmplts.createFriendlyURL(YQLtmplts.SECTOR_LIST_URL)
+	raw_data = urllib2.urlopen(url).read()	
+	queryResult = json.loads(raw_data)['query']['results']['sector']
+	# Parse Query Results
+	try:
 		writeRows = []
-		try:
-			# Parse Query Results
-			if type(queryResult) is dict:
-				queryResult = [queryResult]
-			for industry in queryResult:
-				# Parse Query Results / Read Industry / Read Industry Name and ID
-				industryName = '"' + industry['name'] + '"'
-				industryID = '"' + industry['id'] + '"'
-				# Parse Query Results / Read Industry / Deal with Mistaken/Empty Industries
-				if 'company' not in industry:
+		# Parse Query Results / Read Sector 
+		for sector in queryResult:
+			# Parse Query Results / Read Sector / Deal with Single Entries
+			if type(sector['industry']) is dict:
+				sector['industry'] = [sector['industry']]
+			# Parse Query Results / Read Sector / Read Industry
+			for industry in sector['industry']:
+				# Parse Query Results / Read Sector / Read Industry / Write Row Dictionary to List
+				writeRows.append({'sectorName':sector['name'],'industryID':industry['id'], 'industryName':industry['name']})
+		# Return Query Results
+		return writeRows
+	except:
+		print "**** **** **** **** " + "total queryResult"
+		pprint.pprint(queryResult)
+		raise
+
+########################################Code to Fill Sector and Industry Database / Push Data into Database
+# TODO: This can definitely be batched to add all at once.
+def to_DB_fillSectorAndIndustryDatabase(writeRows, DBFileName=YQLtmplts.FinDBFileName, verbose=False):
+	numSuccesses = 0
+	# Open DB Connection
+	conn = sq.connect(DBFileName)
+	c = conn.cursor()
+	try:
+		# Iterate over Retrieved Data
+		for row in writeRows:
+			# Iterate over Retrieved Data / Create Data Insertion Line
+			statement = finDB.get_insert_SectorIndustryInfo_into_SectorIndustryDB_Statement(
+									row['industryID'],row['industryName'],row['sectorName'])
+			# Iterate over Retrieved Data / Perform Database Insert
+			numSuccesses += finDB.commitDBStatement(conn, c, statement, verbose=verbose)[0]
+		# Display DB Insertion Statistics
+		print "\tSuccessfully inserted " + str(numSuccesses) + " sectors' data."
+		print "\tFailed to Insert " + str((len(writeRows) - numSuccesses)) + " sectors' data."
+	except:
+		raise
+	finally:
+		# Close DB Connection
+		conn.close()
+
+def to_DB_updateIndustryUpdateTime(conn, cursor, nowTime, industryID, industryName, verbose=False):
+	statement = finDB.get_update_ReadTime_into_SectorIndustryDB_Statement(nowTime, industryID)
+	if finDB.commitDBStatement(conn, cursor, statement, verbose=verbose)[0]:
+		print (	'Successfully updated Industry Read Time for Industry ' + 
+				str(industryID) +' (' + industryName + ') to SectorIndustry Table')
+
+
+########################################Code to Fill Company Ticker Database
+def to_DB_fillTickerDatabase(industryUpdateLimit=COMPANY_LIST_INDUSTRY_UPDATE_LIMIT, DBFileName=YQLtmplts.FinDBFileName, verbose=False):
+	# Grab a few Industries to Update
+	UpdateableIndustries = from_DB_getUpdateableIndustryList(DBFileName=DBFileName, updateableTimeLimit=TIME_BETWEEN_COMPANY_LIST_UPDATES)
+	print 'There are ' + str(len(UpdateableIndustries)) + ' sectors that need updating.'
+	UpdateableIndustries = UpdateableIndustries[0:industryUpdateLimit]
+	print 'This update will update the following industry IDs: ' + str(UpdateableIndustries)
+	# Open DB Connection
+	conn = sq.connect(DBFileName)
+	c = conn.cursor()
+	try:
+		now = str(int(time.time()))
+		for industryID in UpdateableIndustries:
+			#CONSIDER: You could get names for all industries at once, IF you can find a way to update updateable times individually
+			writeRows = from_YQL_getCompanyNamesByIndustry(industryID)
+			if len(writeRows) == 0:
+				to_DB_updateIndustryUpdateTime(conn, c, now, industryID, '?', verbose=verbose)
+				continue
+			industryName = writeRows[0]['industryName']
+			tickerExistsCount = 0
+			tickerAdditionSuccess = True
+			stockInfoAdditionSuccess = True
+			for row in writeRows:
+				tickerInsertStatement = finDB.get_insert_Ticker_into_TickerDB_Statement(row['ticker'])
+				stockInfoInsertStatement = finDB.get_insert_Basics_into_StockInfoDB_Statement(row['ticker'], row['companyName'], industryID)
+				# Check if company is in multiple Industries
+				if finDB.checkIfTickerAlreadyInDB(conn, c, row['ticker'], verbose=verbose):
+					tickerExistsCount += 1
 					continue
-				# Parse Query Results / Read Industry / Deal with Single Entries
-				if type(industry['company']) is dict:
-					industry['company'] = [industry['company']]
-				# Parse Query Results / Read Industry / Read Company
-				for company in industry['company']:
-					# Parse Query Results / Read Industry / Read Company / Write Row Dictionary to List
-					companyName = '"' +  company['name']  + '"'
-					companyTicker = '"' + company['symbol'] + '"'
-					writeRows.append({'ticker':companyTicker, 'companyName':companyName, 'industryID':industryID, 'industryName': industryName})
-			# Return Results
-			return writeRows
-		except:
-			print "**** **** **** **** " + "total queryResult"
-			pprint.pprint(queryResult)
-			print "**** **** **** **** " + "specific industry queryResult"
-			pprint.pprint(industry)
-			raise
+				tickerAdditionSuccess = (tickerAdditionSuccess and finDB.commitDBStatement(conn, c, tickerInsertStatement, verbose=verbose)[0])
+				stockInfoAdditionSuccess = (stockInfoAdditionSuccess and finDB.commitDBStatement(conn, c, stockInfoInsertStatement, verbose=verbose)[0])
+			# Update UpdateableTime
+			if tickerAdditionSuccess and stockInfoAdditionSuccess:
+				print (	'Successfully added ' + str(len(writeRows) - tickerExistsCount) + ' and skipped ' +
+						str(tickerExistsCount) + ' companies in Industry ' + 
+						str(industryID) + ' (' + industryName  + ') to Ticker and StockInfo Tables')
+				to_DB_updateIndustryUpdateTime(conn, c, now, industryID, industryName, verbose=verbose)
+	except:
+		raise
+	finally:
+		# Close DB Connection
+		conn.close()
 
-	########################################Database Helper Code
-	########################################Database Helper Code / Commiting Code with Silent Failure
-	#TODO: You can do batch inserts in sql... maybe worth a try
-	def commitDBStatement(self, conn, cursor, statement, verbose = False):
-		try:
-			if verbose:
-				print "Attempting ..." + statement,
-			cursor.execute(statement)
-			conn.commit()
-			if verbose:
-				print "... Succeeded!"
-			return (True, "")
-		except Exception as e:
-			if not verbose:
-				print statement + " Failed!"
-			else:
-				print "... Failed!"
-			print e
-			return (False, str(e))
+########################################Code to Fill Company Ticker Database / Find industries with non-recent updates
+def from_DB_getUpdateableIndustryList(DBFileName=YQLtmplts.FinDBFileName, updateableTimeLimit=TIME_BETWEEN_COMPANY_LIST_UPDATES):
+	# Open DB Connection
+	conn = sq.connect(DBFileName)
+	c = conn.cursor()
+	try:
+		# Get Time Delay
+		updateableTime = int(time.time()) - updateableTimeLimit;
+		# Generate Statement
+		getCountCommand = 'select int_industry_id from T_SECTOR_INDUSTRY where dt_last_accessed < ' + str(updateableTime)
+		# Execute Statement
+		c.execute(getCountCommand)
+		IndustryList = c.fetchall()
+		# Flatten List
+		IndustryList = [record[0] for record in IndustryList]
+		# Return Data
+		return IndustryList
+	except:
+		raise
+	finally:
+		# Close DB Connection
+		conn.close()
+	
 
-	########################################Database Helper Code / Outward-facing Table Peeking
-	def peerIntoDatabase(self, TableName, displayPragma = False, limit = 10):
-		# Open DB Connection
-		conn = sq.connect(tmplts.DBFileName)
-		c = conn.cursor()
-		try:
-			# Print Table Length
-			viewLengthCommand = 'select count(*) from ' + TableName
-			c.execute(viewLengthCommand)
-			print 'There are ' + str(c.fetchall()[0][0]) + ' rows in ' + TableName
-			# Get Table Column Names and Types
-			pragmaCommand = 'pragma table_info("' + TableName + '")'
-			c.execute(pragmaCommand)
-			pragma = c.fetchall()
-			#		(pragma columns are as follows:)
-			#		(cid,name,type,notnull,dflt_value,pk)
-			columnNames = [col[1] for col in pragma]
-			columnTypes = [col[2] for col in pragma]
-			if displayPragma:
-				pprint.pprint(pragma)
-			# Print First Few Rows of Table		
-			viewFirstFewCommand = 'select * from ' + TableName + ' limit ' + str(limit)
-			c.execute(viewFirstFewCommand)
-			firstFew = c.fetchall()
-			print columnTypes
-			print columnNames
-			pprint.pprint(firstFew)
-		finally:
-			# Close DB Connection
-			conn.close()
+########################################Code to Fill Company Ticker Database / Find companies belonging to each industry
+def from_YQL_getCompanyNamesByIndustry(idList):
+	if type(idList) is int:
+		idList = [idList]
+	# Read Data from Yahoo as JSON query
+	url = YQLtmplts.createFriendlyURL(YQLtmplts.COMPANY_BY_INDUSTRY_TEMPLATE_URL, idList = idList)
+	raw_data = urllib2.urlopen(url).read()	
+	queryResult = json.loads(raw_data)['query']['results']['industry']
+	writeRows = []
+	try:
+		# Parse Query Results
+		if type(queryResult) is dict:
+			queryResult = [queryResult]
+		for industry in queryResult:
+			# Parse Query Results / Read Industry / Deal with Mistaken or Empty Industries
+			if 'company' not in industry:
+				print 'Industry ' + industry['id'] + ' appears to have no companies within it'
+				continue
+			# Parse Query Results / Read Industry / Deal with Single Entries
+			if type(industry['company']) is dict:
+				industry['company'] = [industry['company']]
+			# Parse Query Results / Read Industry / Read Company
+			for company in industry['company']:
+				# Parse Query Results / Read Industry / Read Company / Write Row Dictionary to List
+				writeRows.append({	'ticker':company['symbol'], 
+									'companyName':company['name'], 
+									'industryID':industry['id'], 
+									'industryName': industry['name']})
+		# Return Results
+		return writeRows
+	except:
+		print "**** **** **** **** " + "total queryResult"
+		pprint.pprint(queryResult)
+		print "**** **** **** **** " + "specific industry queryResult"
+		pprint.pprint(industry)
+		raise
+
