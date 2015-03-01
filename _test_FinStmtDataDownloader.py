@@ -9,19 +9,6 @@ import FinStmtDataDownloader as finDld
 import FinStmtDatabaseCreator as finDBMaker
 import YQLFinanceTemplates as YQLtmplts
 
-
-def test_from_YQL_getSectorAndIndustryList():
-	sectIndList = finDld.from_YQL_getSectorAndIndustryList()
-	print '\tEnsure the sector/industry list is not changing drastically in size...',
-	assert len(sectIndList) > 200 and len(sectIndList) < 300 
-	print ' ... seems OK.'
-	print '\tEnsure some data is actually coming back in list of dictionaries... ',
-	sectIndListSample = sectIndList[0]
-	assert 'industryID' in sectIndListSample
-	assert 'industryName' in sectIndListSample
-	assert 'sectorName' in sectIndListSample
-	print ' ... seems OK.'
-
 def test_DatabaseCreation():
 	DBFileName = YQLtmplts.TestDBFileName
 	try:
@@ -48,6 +35,18 @@ def test_DatabaseCreation():
 		raise
 	finally:
 		conn.close()
+
+def test_from_YQL_getSectorAndIndustryList():
+	sectIndList = finDld.from_YQL_getSectorAndIndustryList()
+	print '\tEnsure the sector/industry list is not changing drastically in size...',
+	assert len(sectIndList) > 200 and len(sectIndList) < 300 
+	print ' ... seems OK.'
+	print '\tEnsure some data is actually coming back in list of dictionaries... ',
+	sectIndListSample = sectIndList[0]
+	assert 'industryID' in sectIndListSample
+	assert 'industryName' in sectIndListSample
+	assert 'sectorName' in sectIndListSample
+	print ' ... seems OK.'
 
 #bad test design. everywhere.
 def test_fillSectorAndIndustryDatabase():
@@ -100,23 +99,6 @@ def test_from_DB_getUpdateableIndustryList():
 		raise
 	finally:
 		conn.close()
-	
-def test_to_DB_fillTickerDatabase():
-	DBFileName = YQLtmplts.TestDBFileName
-	try:
-		print '\tEnsure getting the Tickers using the Industry List goes through end to end (for 1 industry)...'
-		finDld.to_DB_fillTickerDatabase(industryUpdateLimit=1, DBFileName=DBFileName, verbose=False)
-		print ' ... seems OK.'
-	except:
-		print '... Failed!'
-		raise
-	try:
-		print '\tEnsure getting the Tickers using the Industry List goes through end to end (for 10 industries)...'
-		finDld.to_DB_fillTickerDatabase(industryUpdateLimit=10, DBFileName=DBFileName, verbose=False)
-		print ' ... seems OK.'
-	except:
-		print '... Failed!'
-		raise	
 
 def test_from_YQL_getCompanyNamesByIndustry():
 	DBFileName = YQLtmplts.TestDBFileName
@@ -137,6 +119,23 @@ def test_from_YQL_getCompanyNamesByIndustry():
 	except:
 		print '... Failed!'
 		raise		
+
+def test_to_DB_fillTickerDatabase():
+	DBFileName = YQLtmplts.TestDBFileName
+	try:
+		print '\tEnsure getting the Tickers using the Industry List goes through end to end (for 1 industry)...'
+		finDld.to_DB_fillTickerDatabase(industryUpdateLimit=1, DBFileName=DBFileName, verbose=False)
+		print ' ... seems OK.'
+	except:
+		print '... Failed!'
+		raise
+	try:
+		print '\tEnsure getting the Tickers using the Industry List goes through end to end (for 10 industries)...'
+		finDld.to_DB_fillTickerDatabase(industryUpdateLimit=10, DBFileName=DBFileName, verbose=False)
+		print ' ... seems OK.'
+	except:
+		print '... Failed!'
+		raise	
 
 if __name__ == '__main__':
 	if False:

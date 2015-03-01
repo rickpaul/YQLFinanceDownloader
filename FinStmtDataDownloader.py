@@ -162,7 +162,6 @@ def to_DB_fillTickerDatabase(industryUpdateLimit=COMPANY_LIST_INDUSTRY_UPDATE_LI
 			#CONSIDER: You could get names for all industries at once, IF you can find a way to update updateable times individually
 			writeRows = from_YQL_getCompanyNamesByIndustry(industryID)
 			if len(writeRows) == 0:
-				print 'Found no Companies for Industry ' + str(industryID)
 				to_DB_updateIndustryUpdateTime(conn, c, now, industryID, '?', verbose=verbose)
 				continue
 			industryName = writeRows[0]['industryName']

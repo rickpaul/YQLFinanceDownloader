@@ -175,5 +175,5 @@ def createFriendlyURL(  template,
     templateURL = templateURL.replace('\t','')    
     return templateURL
 
-FinDBFileName = './database/financialData.db'
-TestDBFileName = './database/testFinancialData.db'
+FinDBFileName = '~/Databases/YQLDownloads/financialData.db'
+TestDBFileName = '~/Databases/YQLDownloads/testFinancialData.db'
