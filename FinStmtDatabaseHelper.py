@@ -1,4 +1,6 @@
+import pprint
 import string
+import sqlite3 as sq
 from YQLFinanceTemplates import FinDBFileName as defaultDB
 
 ########################################Common Insert and Update Statements
@@ -53,7 +55,7 @@ def get_update_ReadTime_into_SectorIndustryDB_Statement(time, indID):
 	whereValues = [str(indID)]
 	return generateUpdateStatement(table, setColumns, setValues, whereColumns, whereValues)
 
-########################################Other Helfpul Statements
+########################################Useful Select Statements
 def checkIfTickerAlreadyInDB(conn, cursor, compTicker, verbose = False):
 	if (compTicker[0] is not '"') and (compTicker[0] is not "'"):
 		compTicker = stringify(compTicker)
@@ -65,10 +67,9 @@ def checkIfTickerAlreadyInDB(conn, cursor, compTicker, verbose = False):
 			print ('Ticker ' + compTicker + ' already in Ticker Database')
 	return exists
 
-
 ########################################Database Helper Code
 ########################################Database Helper Code / Commiting Code with Silent Failure
-#TODO: You can do batch inserts in sql... maybe worth a try
+#TODO: You can do batch inserts in sql... maybe worth a try later
 def commitDBStatement(conn, cursor, statement, verbose = False):
 	try:
 		if verbose:
@@ -86,18 +87,54 @@ def commitDBStatement(conn, cursor, statement, verbose = False):
 		print e
 		return (False, str(e))
 
-########################################Database Helper Code / Outward-facing Table Peeking
-def peerIntoDatabase(TableName, databaseFile=defaultDB, displayPragma=False, limit=10):
+########################################Outward-facing Table Peeking for Debugging
+def executeSimpleDatabaseStatement(statement, showCols=True, databaseFile=defaultDB):
 	# Open DB Connection
-	conn = sq.connect()
+	conn = sq.connect(databaseFile)
+	c = conn.cursor()
+	try:
+		queryType = string.lower(statement[0:string.find(statement,' ')])
+		if queryType == 'select':
+			if showCols:
+				tableNameStart = string.find(statement,'from ') + 5
+				tableNameEnd = string.find(statement,' ',tableNameStart)
+				tableName = statement[tableNameStart:tableNameEnd]
+				pragmaCommand = 'pragma table_info("' + tableName + '")'
+				c.execute(pragmaCommand)
+				pragma = c.fetchall()
+				print 'COLUMN NAMES:'
+				print [col[1] for col in pragma]
+				print 'COLUMN TYPES:'	
+				print [col[2] for col in pragma]
+			print 'VALUES:'
+			c.execute(statement)
+			results = c.fetchall()
+			if len(results) == 0:
+				print 'NOTHING FOUND'
+			else:
+				pprint.pprint(results)
+		elif queryType == 'insert' or queryType == 'update':
+			c.execute(statement)
+			c.commit()
+		else:
+			raise NameError('simple database query type not recognized')
+	except:
+		raise
+	finally:
+		# Close DB Connection
+		conn.close()
+
+def peerIntoDatabase(tableName, databaseFile=defaultDB, displayPragma=False, limit=10):
+	# Open DB Connection
+	conn = sq.connect(databaseFile)
 	c = conn.cursor()
 	try:
 		# Print Table Length
-		viewLengthCommand = 'select count(*) from ' + TableName
+		viewLengthCommand = 'select count(*) from ' + tableName
 		c.execute(viewLengthCommand)
-		print 'There are ' + str(c.fetchall()[0][0]) + ' rows in ' + TableName
+		print 'There are ' + str(c.fetchall()[0][0]) + ' rows in ' + tableName
 		# Get Table Column Names and Types
-		pragmaCommand = 'pragma table_info("' + TableName + '")'
+		pragmaCommand = 'pragma table_info("' + tableName + '")'
 		c.execute(pragmaCommand)
 		pragma = c.fetchall()
 		#		(pragma columns are as follows:)
@@ -107,7 +144,7 @@ def peerIntoDatabase(TableName, databaseFile=defaultDB, displayPragma=False, lim
 		if displayPragma:
 			pprint.pprint(pragma)
 		# Print First Few Rows of Table		
-		viewFirstFewCommand = 'select * from ' + TableName + ' limit ' + str(limit)
+		viewFirstFewCommand = 'select * from ' + tableName + ' limit ' + str(limit)
 		c.execute(viewFirstFewCommand)
 		firstFew = c.fetchall()
 		print columnTypes
