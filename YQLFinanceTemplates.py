@@ -1,6 +1,12 @@
-import string	
+import string
+import os	
 
 #For getting the ticker list
+STOCKS_START_END_TRADING_URL = (
+                "https://query.yahooapis.com/v1/public/yql?"
+                "?q=select%20*%20from%20yahoo.finance.stocks%20where%20symbol%20in(<SYMBOL_LIST_HERE>)"
+                "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
+
 SECTOR_LIST_URL = (
                 "https://query.yahooapis.com/v1/public/yql?"
                 "q=select%20*%20from%20yahoo.finance.sectors"
@@ -11,12 +17,71 @@ COMPANY_BY_INDUSTRY_TEMPLATE_URL = (
                 "q=select%20*%20from%20yahoo.finance.industry%20where%20id%20in%20(<INDUSTRY_ID_LIST_HERE>)"
                 "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
 
+EXCHANGE_FROM_SYMBOL_TEMPLATE_URL = (
+                "https://query.yahooapis.com/v1/public/yql?"
+                "q=select%20symbol%2CStockExchange%20from%20yahoo.finance.quote%20where%20symbol%20in%20(<SYMBOL_LIST_HERE>)"
+                "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=" 
+    )
+
 # For Balance Sheet, Income Statement, and Cash Flow Statement
 BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL =(
                 "https://query.yahooapis.com/v1/public/yql?"
             	"q=SELECT%20*%20FROM%20yahoo.finance.<STATEMENT_NAME_HERE>"
             	"%20WHERE%20symbol%20in%20(<SYMBOL_LIST_HERE>)"
             	"&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
+
+
+AnalystEarningsEstContentKeys = [
+"AvgEstimate",
+"NoofAnalysts",
+"LowEstimate",
+"HighEstimate",
+"YearAgoEPS"
+] # RelativeTime
+AnalystRevenueEstContentKeys = [
+"AvgEstimate",
+"NoofAnalysts",
+"HighEstimate",
+"YearAgoSales",
+"SalesGrowth"
+] # RelativeTime
+AnalystEPSTrendsContentKeys = [
+"CurrentEstimate",
+"_7DaysAgo",
+"_30DaysAgo",
+"_60DaysAgo",
+"_90DaysAgo"
+] # RelativeTime
+AnalystEPSRevisionsContentKeys = [
+"UpLast7Days",
+"UpLast30Days",
+"DownLast30Days",
+"DownLast90Days"
+] # RelativeTime
+AnalystEarningsHistoryContentKeys = [
+"EPSEst",
+"EPSActual",
+"Difference",
+"Surprise"
+] # MmmY
+AnalystGrowthTrendsContentKeys = [
+"CurrentQtr",
+"NextQtr",
+"ThisYear",
+"NextYear",
+"Past5Years",
+"Next5Years",
+"PriceEarnings",
+"PEGRatio"
+] # RelativeToOthers
+
+AnalystRelativeTimeSubKeys = [
+"CurrentQtr",
+"NextQtr",
+"CurrentYear",
+"NextYear"
+]
+
 
 BSContentKeys = [
 "CashAndCashEquivalents",
@@ -161,13 +226,13 @@ def getExpectedDatabaseName(statementName):
 
 def createFriendlyURL(  template,
                         statementName="",
-                        symbolList=[],
+                        tickerList=[],
                         idList=[],
                         startDate="",
                         endDate=""):
-    symbolList = "'"+string.join(symbolList,"','")+"'"
+    tickerList = "'"+string.join(tickerList,"','")+"'"
     idList = string.join(["'"+str(ID)+"'" for ID in idList],",")
-    templateURL = template.replace('<SYMBOL_LIST_HERE>',symbolList)
+    templateURL = template.replace('<SYMBOL_LIST_HERE>',tickerList)
     templateURL = templateURL.replace('<INDUSTRY_ID_LIST_HERE>',idList)
     templateURL = templateURL.replace('<STATEMENT_NAME_HERE>',statementName)
     templateURL = templateURL.replace(' ','')
@@ -175,5 +240,7 @@ def createFriendlyURL(  template,
     templateURL = templateURL.replace('\t','')    
     return templateURL
 
-FinDBFileName = '~/Databases/YQLDownloads/financialData.db'
-TestDBFileName = '~/Databases/YQLDownloads/testFinancialData.db'
+
+HomeDirectory = os.path.expanduser('~')
+FinDBFileName = HomeDirectory + '/Databases/YQLDownloads/financialData.db'
+TestDBFileName = HomeDirectory + '/Databases/YQLDownloads/test_financialData.db'
