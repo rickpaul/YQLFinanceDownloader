@@ -9,23 +9,30 @@ import FinStmtDataDownloader as finDld
 import FinStmtDatabaseCreator as finDBMaker
 import YQLFinanceTemplates as YQLtmplts
 
-def test_DatabaseCreation():
-	DBFileName = YQLtmplts.TestDBFileName
+def test_doOneTimeDBCreation(DBFileName=YQLtmplts.TestDBFileName):
 	try:
-		print '\tEnsure the DB can be created...'
+		print 'Ensure the DB can be created...'
 		finDBMaker.doOneTimeDBCreation(force=True,dbPath=DBFileName)
 		print ' ... seems OK.'
 	except:
 		print '... Failed!'
 		raise
-	print '\tEnsure DB is in expected location... ',
+	print 'Ensure DB is in expected location... ',
 	assert os.path.isfile(DBFileName)
 	print ' ... seems OK.'
 
+	print 'Ensure at least the file and expected tables were created...'
+	success = finDBMaker.checkIfDBExistsWithTables(dbPath=DBFileName)
+	if success:
+		print ' ... seems OK.'
+	else:
+		print '... DB Creation Failed!'
+
+	#Sort of a duplicate of the above...
 	conn = sq.connect(DBFileName)
 	c = conn.cursor()
 	try:
-		print '\tEnsure at least one table (T_TICKER) was created',
+		print 'Ensure at least one table (T_TICKER) was created...',
 		statement = 'select count(*) from T_TICKER'
 		c.execute(statement)
 		assert len(c.fetchall()) > 0
@@ -36,12 +43,13 @@ def test_DatabaseCreation():
 	finally:
 		conn.close()
 
+
 def test_from_YQL_getSectorAndIndustryList():
 	sectIndList = finDld.from_YQL_getSectorAndIndustryList()
-	print '\tEnsure the sector/industry list is not changing drastically in size...',
+	print 'Ensure the sector/industry list is not changing drastically in size...',
 	assert len(sectIndList) > 200 and len(sectIndList) < 300 
 	print ' ... seems OK.'
-	print '\tEnsure some data is actually coming back in list of dictionaries... ',
+	print 'Ensure some data is actually coming back in list of dictionaries... ',
 	sectIndListSample = sectIndList[0]
 	assert 'industryID' in sectIndListSample
 	assert 'industryName' in sectIndListSample
@@ -49,10 +57,9 @@ def test_from_YQL_getSectorAndIndustryList():
 	print ' ... seems OK.'
 
 #bad test design. everywhere.
-def test_fillSectorAndIndustryDatabase():
-	DBFileName = YQLtmplts.TestDBFileName
+def test_fillSectorAndIndustryDatabase(DBFileName = YQLtmplts.TestDBFileName):
 	try:
-		print '\tEnsure getting the Full Sector and Industry List goes through end to end ...'
+		print 'Ensure getting the Full Sector and Industry List goes through end to end ...'
 		finDld.fillSectorAndIndustryDatabase(DBFileName=DBFileName,verbose=False)
 		print ' ... seems OK.'
 	except:
@@ -62,7 +69,7 @@ def test_fillSectorAndIndustryDatabase():
 	conn = sq.connect(DBFileName)
 	c = conn.cursor()
 	try:
-		print '\tEnsure specific expected entry is in database...',
+		print 'Ensure specific expected entry is in database...',
 		statement = '''	select * from T_SECTOR_INDUSTRY 
 						where 
 						int_industry_id = 850 and 
@@ -77,10 +84,9 @@ def test_fillSectorAndIndustryDatabase():
 	finally:
 		conn.close()	
 
-def test_from_DB_getUpdateableIndustryList():
-	DBFileName = YQLtmplts.TestDBFileName
+def test_from_DB_getUpdateableIndustryList(DBFileName = YQLtmplts.TestDBFileName):
 	try:
-		print '\tEnsure the List of Updateable Industries comes through ...',
+		print 'Ensure the List of Updateable Industries comes through ...',
 		updateableIndustries = finDld.from_DB_getUpdateableIndustryList(DBFileName=DBFileName, updateableTimeLimit=0)
 		print ' ... seems OK.'
 	except:
@@ -90,7 +96,7 @@ def test_from_DB_getUpdateableIndustryList():
 	conn = sq.connect(DBFileName)
 	c = conn.cursor()
 	try:
-		print '\tEnsure the list is long enough...',
+		print 'Ensure the list is long enough...',
 		c.execute('select count(*) from T_SECTOR_INDUSTRY')
 		numberOfSectors = c.fetchall()[0][0]
 		assert numberOfSectors == len(updateableIndustries)
@@ -100,10 +106,9 @@ def test_from_DB_getUpdateableIndustryList():
 	finally:
 		conn.close()
 
-def test_from_YQL_getCompanyNamesByIndustry():
-	DBFileName = YQLtmplts.TestDBFileName
+def test_from_YQL_getCompanyNamesByIndustry(DBFileName = YQLtmplts.TestDBFileName):
 	try:
-		print '\tEnsure you can get companies using an ID'
+		print 'Ensure you can get companies using an ID'
 		writeRows = finDld.from_YQL_getCompanyNamesByIndustry([110])
 		pprint(writeRows)
 		print ' ... seems OK.' 
@@ -112,7 +117,7 @@ def test_from_YQL_getCompanyNamesByIndustry():
 		raise
 
 	try:
-		print '\tEnsure you can get companies using multiple IDs'
+		print 'Ensure you can get companies using multiple IDs'
 		writeRows = finDld.from_YQL_getCompanyNamesByIndustry([110, 111, 112, 113, 120, 121, 122, 123, 124, 125])
 		pprint(writeRows)
 		print ' ... seems OK.' 
@@ -120,17 +125,16 @@ def test_from_YQL_getCompanyNamesByIndustry():
 		print '... Failed!'
 		raise		
 
-def test_to_DB_fillTickerDatabase():
-	DBFileName = YQLtmplts.TestDBFileName
+def test_to_DB_fillTickerDatabase(DBFileName = YQLtmplts.TestDBFileName):
 	try:
-		print '\tEnsure getting the Tickers using the Industry List goes through end to end (for 1 industry)...'
+		print 'Ensure getting the Tickers using the Industry List goes through end to end (for 1 industry)...'
 		finDld.to_DB_fillTickerDatabase(industryUpdateLimit=1, DBFileName=DBFileName, verbose=False)
 		print ' ... seems OK.'
 	except:
 		print '... Failed!'
 		raise
 	try:
-		print '\tEnsure getting the Tickers using the Industry List goes through end to end (for 10 industries)...'
+		print 'Ensure getting the Tickers using the Industry List goes through end to end (for 10 industries)...'
 		finDld.to_DB_fillTickerDatabase(industryUpdateLimit=10, DBFileName=DBFileName, verbose=False)
 		print ' ... seems OK.'
 	except:
@@ -138,9 +142,8 @@ def test_to_DB_fillTickerDatabase():
 		raise	
 
 if __name__ == '__main__':
-	if False:
-		test_DatabaseCreation()
-	# ...Presumably our Test DB exists at this point
+	if True:
+		test_doOneTimeDBCreation()
 	if False:
 		test_from_YQL_getSectorAndIndustryList()
 	if False:
@@ -150,5 +153,5 @@ if __name__ == '__main__':
 		test_from_DB_getUpdateableIndustryList()
 	if False:
 		test_from_YQL_getCompanyNamesByIndustry()
-	if True:
+	if False:
 		test_to_DB_fillTickerDatabase()

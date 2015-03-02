@@ -111,13 +111,7 @@ fullTableCreationInstructions['T_STOCK_INFORMATION'] = createStockInformationTab
 # '''
 # fullTableCreationInstructions['T_UNRECORDED_METRICS'] = createUnrecordedMetricsTable
 
-def get_DropTable_Statement(tableName):
-	return 'drop table if exists ' + tableName
-
-def doOneTimeDBCreation(force=False, dbPath=YQLtmplts.FinDBFileName, manual=True):
-	# Find List of DBs to Create
-	if manual:
-		tableCreationInstructions = {
+manualTableCreationInstructions = {
 			'T_SECTOR_INDUSTRY':createSectorIndustryTable,
 			'T_TICKER':createTickerTable,
 			'T_STOCK_INFORMATION':createStockInformationTable,
@@ -127,16 +121,56 @@ def doOneTimeDBCreation(force=False, dbPath=YQLtmplts.FinDBFileName, manual=True
 			# 'T_BALANCE_SHEET':createBalanceSheetTable,
 			# 'T_UNRECORDED_METRICS':createUnrecordedMetricsTable
 		}
+
+def get_TableExists_Statement(tableName):
+	return 'select name from sqlite_master where type="table" and name = "' + tableName + '";'
+
+def get_DropTable_Statement(tableName):
+	return 'drop table if exists ' + tableName + ';'
+
+def checkIfDBExistsWithTables(dbPath=YQLtmplts.FinDBFileName, manual=False):
+	# Check if DB File Exists
+	if not os.path.isfile(dbPath):
+		return False
+
+	# Find List of DBs to Create
+	if manual:
+		tableCreationInstructions = manualTableCreationInstructions
+	else:
+		tableCreationInstructions = fullTableCreationInstructions
+
+	conn = sq.connect(dbPath)
+	c = conn.cursor()
+	# Check for Existence of Individual Tables
+	try:
+		for (tableName, instruction) in tableCreationInstructions.iteritems():
+			statement = get_TableExists_Statement(tableName)
+			print "Checking existence of "  + tableName + "...",
+			c.execute(statement)
+			if c.fetchall()[0][0] == 0:
+				print "..." + tableName + " doesn't exist."
+				return False
+			print "... Exists!"
+		print "DB exists with appropriate tables"
+		return True
+	except:
+		raise
+	finally:
+		conn.close()
+
+
+def doOneTimeDBCreation(force=False, dbPath=YQLtmplts.FinDBFileName, manual=False):
+	# Find List of DBs to Create
+	if manual:
+		tableCreationInstructions = manualTableCreationInstructions
 	else:
 		tableCreationInstructions = fullTableCreationInstructions
 
 	# Find Database Directory
 	directory = os.path.dirname(dbPath)
 	# Create Directory if Necessary
-	try: 
-		os.stat(directory)
-	except:
-		os.mkdir(directory)
+	if not os.path.exists(directory):
+		os.makedirs(directory)
 	# Connect to Database
 	conn = sq.connect(dbPath)
 	c = conn.cursor()
