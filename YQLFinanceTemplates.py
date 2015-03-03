@@ -1,12 +1,19 @@
 import string
 import os	
 
-#For getting the ticker list
+#For Stock Information
 STOCKS_START_END_TRADING_URL = (
                 "https://query.yahooapis.com/v1/public/yql?"
-                "?q=select%20*%20from%20yahoo.finance.stocks%20where%20symbol%20in(<SYMBOL_LIST_HERE>)"
+                "q=select%20*%20from%20yahoo.finance.stocks%20where%20symbol%20in(<SYMBOL_LIST_HERE>)"
                 "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
 
+EXCHANGE_FROM_SYMBOL_TEMPLATE_URL = (
+                "https://query.yahooapis.com/v1/public/yql?"
+                "q=select%20symbol%2CAverageDailyVolume%2CMarketCapitalization%2CStockExchange%20"
+                "from%20yahoo.finance.quote%20where%20symbol%20in%20(<SYMBOL_LIST_HERE>)"
+                "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
+
+#For Sector/Industry Information
 SECTOR_LIST_URL = (
                 "https://query.yahooapis.com/v1/public/yql?"
                 "q=select%20*%20from%20yahoo.finance.sectors"
@@ -16,12 +23,6 @@ COMPANY_BY_INDUSTRY_TEMPLATE_URL = (
                 "https://query.yahooapis.com/v1/public/yql?"
                 "q=select%20*%20from%20yahoo.finance.industry%20where%20id%20in%20(<INDUSTRY_ID_LIST_HERE>)"
                 "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
-
-EXCHANGE_FROM_SYMBOL_TEMPLATE_URL = (
-                "https://query.yahooapis.com/v1/public/yql?"
-                "q=select%20symbol%2CStockExchange%20from%20yahoo.finance.quote%20where%20symbol%20in%20(<SYMBOL_LIST_HERE>)"
-                "&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=" 
-    )
 
 # For Balance Sheet, Income Statement, and Cash Flow Statement
 BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL =(
