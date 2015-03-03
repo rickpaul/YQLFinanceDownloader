@@ -36,9 +36,11 @@ txt_ticker TEXT NOT NULL PRIMARY KEY,
 txt_company_name TEXT,
 txt_exchange TEXT,
 int_industry_id INTEGER,
-dt_date_retrieved REAL,
 dt_start_trading REAL,
 dt_end_trading REAL,
+int_market_cap INTEGER,
+int_average_daily_vol INTEGER,
+dt_date_retrieved REAL DEFAULT 0,
 FOREIGN KEY (txt_ticker) REFERENCES T_TICKER (txt_ticker)
 FOREIGN KEY (int_industry_id) REFERENCES T_SECTOR_INDUSTRY (int_industry_id)
 );
@@ -112,8 +114,8 @@ fullTableCreationInstructions['T_STOCK_INFORMATION'] = createStockInformationTab
 # fullTableCreationInstructions['T_UNRECORDED_METRICS'] = createUnrecordedMetricsTable
 
 manualTableCreationInstructions = {
-			'T_SECTOR_INDUSTRY':createSectorIndustryTable,
-			'T_TICKER':createTickerTable,
+			# 'T_SECTOR_INDUSTRY':createSectorIndustryTable,
+			# 'T_TICKER':createTickerTable,
 			'T_STOCK_INFORMATION':createStockInformationTable,
 			# 'T_DEEP_STOCK_INFORMATION':createDeepStockInformationTable,
 			# 'T_CASH_FLOW_STATEMENT':createCashFlowStatementTable,

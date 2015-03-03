@@ -4,8 +4,8 @@ import FinStmtDatabaseCreator as finDBMaker
 
 def createDatabase():
 	# Create DB
-	if not finDBMaker.checkIfDBExistsWithTables():
-		finDBMaker.doOneTimeDBCreation()
+	if not finDBMaker.checkIfDBExistsWithTables(manual=True):
+		finDBMaker.doOneTimeDBCreation(manual=True)
 
 def fillTickerDatabase():
 	# Fill Sectors and Industries
