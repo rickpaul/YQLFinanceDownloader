@@ -1,5 +1,24 @@
 import string
-import os	
+import os
+import datetime
+import calendar
+
+# URLs
+def createFriendlyURL(  template,
+                        statementName="",
+                        tickerList=[],
+                        idList=[],
+                        startDate="",
+                        endDate=""):
+    tickerList = "'"+string.join(tickerList,"','")+"'"
+    idList = string.join(["'"+str(ID)+"'" for ID in idList],",")
+    templateURL = template.replace('<SYMBOL_LIST_HERE>',tickerList)
+    templateURL = templateURL.replace('<INDUSTRY_ID_LIST_HERE>',idList)
+    templateURL = templateURL.replace('<STATEMENT_NAME_HERE>',statementName)
+    templateURL = templateURL.replace(' ','')
+    templateURL = templateURL.replace('\n','')
+    templateURL = templateURL.replace('\t','')    
+    return templateURL
 
 #For Stock Information
 STOCKS_START_END_TRADING_URL = (
@@ -30,6 +49,33 @@ BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL =(
             	"q=SELECT%20*%20FROM%20yahoo.finance.<STATEMENT_NAME_HERE>"
             	"%20WHERE%20symbol%20in%20(<SYMBOL_LIST_HERE>)"
             	"&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=")
+
+# String Deformatting
+def shorthand2i(numAsString):
+    lastChar = numAsString[-1]
+    if lastChar.isdigit():
+        return int(numAsString)
+    num = float(numAsString[:-1])
+    if lastChar == 'B':
+        return int(num * 1000000000)
+    elif lastChar == 'M':
+        return int(num * 1000000)
+    elif lastChar == 'K':
+        return int(num * 1000)
+    else:
+        raise NameError('Number Suffix Not Recognized')
+
+def p2f(percentAsString):
+    return(float(percentAsString.strip('%'))/100)
+
+def dtConvert_YMDtoEpoch(timeString):
+    return int(datetime.datetime.strptime(timeString, '%Y-%m-%d').strftime('%s'))
+
+def dtConvert_MmmYtoEpoch(timeString,endOfMonth=True):
+    dt = datetime.datetime.strptime(timeString, '%b%y')
+    if endOfMonth:
+        dt.day = calendar.monthrange(dt.year,dt.month)[1]
+    return int(dt.strftime('%s'))
 
 
 AnalystEarningsEstContentKeys = [
@@ -225,23 +271,7 @@ def getExpectedDatabaseName(statementName):
     else:
         raise NameError("Unrecognized Statement Name")
 
-def createFriendlyURL(  template,
-                        statementName="",
-                        tickerList=[],
-                        idList=[],
-                        startDate="",
-                        endDate=""):
-    tickerList = "'"+string.join(tickerList,"','")+"'"
-    idList = string.join(["'"+str(ID)+"'" for ID in idList],",")
-    templateURL = template.replace('<SYMBOL_LIST_HERE>',tickerList)
-    templateURL = templateURL.replace('<INDUSTRY_ID_LIST_HERE>',idList)
-    templateURL = templateURL.replace('<STATEMENT_NAME_HERE>',statementName)
-    templateURL = templateURL.replace(' ','')
-    templateURL = templateURL.replace('\n','')
-    templateURL = templateURL.replace('\t','')    
-    return templateURL
-
-
+# DB Location #TODO: move to FinStmtDatabaseCreator
 HomeDirectory = os.path.expanduser('~')
 FinDBFileName = HomeDirectory + '/Databases/YQLDownloads/financialData.db'
 TestDBFileName = HomeDirectory + '/Databases/YQLDownloads/test_financialData.db'
