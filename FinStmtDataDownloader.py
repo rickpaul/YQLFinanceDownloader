@@ -6,18 +6,162 @@ import pprint
 import YQLFinanceTemplates as YQLtmplts
 import FinStmtDatabaseHelper as finDB
 
-ONE_MONTH = 60*60*24*30
-
+ONE_DAY = 60*60*24
+ONE_WEEK = ONE_DAY*7
+ONE_MONTH = ONE_DAY*30
+TIME_BETWEEN_COMPANY_INFO_UPDATES = ONE_WEEK #CONSIDER: make this a month? Depends on how much you care about start/end trading dates
 TIME_BETWEEN_COMPANY_LIST_UPDATES = ONE_MONTH
-COMPANY_LIST_INDUSTRY_UPDATE_LIMIT = 10
+SECTOR_LIST_INDUSTRY_UPDATE_LIMIT = 10
+COMPANY_LIST_INDUSTRY_UPDATE_LIMIT = 20
+
+def to_DB_fillCompanyInfoDatabase(	companyNumUpdateLimit=COMPANY_LIST_INDUSTRY_UPDATE_LIMIT,
+									companyTimeUpdateLimit=TIME_BETWEEN_COMPANY_INFO_UPDATES,
+									DBFileName=YQLtmplts.FinDBFileName,
+									verbose=False):
+	# Grab a few Companies to Update
+	updateableCompanies = from_DB_getUpdateableCompanyList(	DBFileName=DBFileName, 
+															updateableTimeLimit=companyTimeUpdateLimit)
+	numRemaining = len(updateableCompanies)
+	print 'There are ' + str(numRemaining) + ' companies that need updating.'
+	updateableCompanies = updateableCompanies[0:companyNumUpdateLimit]
+	numUpdating = len(updateableCompanies)
+	print 'This update will update the following ' + str(numUpdating) + ' companies: ' + str(updateableCompanies)
+	# Open DB Connection
+	conn = sq.connect(DBFileName)
+	c = conn.cursor()
+	try:
+		now = str(int(time.time()))
+		# Retrieve data from YQL
+		exchangeEtcWriteRows = from_YQL_getCompanyExchangeVolumeMktCap(updateableCompanies)
+		startEndWriteRows = from_YQL_getCompanyStartEndTradingDates(updateableCompanies)
+		# pprint.pprint(exchangeEtcWriteRows) #TEST
+		# pprint.pprint(startEndWriteRows) #TEST
+		# return #TEST
+		numSuccesses = 0
+		for company in updateableCompanies:
+			exchangeEtcInfo = exchangeEtcWriteRows[company]
+			startEndInfo = startEndWriteRows[company]
+			updateStatement = finDB.get_update_into_StockInfoDB_Statement(	company, 
+																			exchangeEtcInfo['exchange'], 
+																			exchangeEtcInfo['mktCap'], 
+																			exchangeEtcInfo['avgVol'], 
+																			startEndInfo['startTrade'], 
+																			startEndInfo['endTrade'], 
+																			now)
+			numSuccesses += finDB.commitDBStatement(conn, c, updateStatement, verbose=verbose)[0]
+		return (numRemaining - numSuccesses) > 0
+	except:
+		# print "**** **** **** **** " + "total rows to be added"
+		# pprint.pprint(exchangeEtcWriteRows)
+		# pprint.pprint(startEndWriteRows)
+		# print "**** **** **** **** " + "specific company row information"
+		# print company
+		# pprint.pprint(exchangeEtcInfo)
+		# pprint.pprint(startEndInfo)
+		raise
+	finally:
+		# Close DB Connection
+		conn.close()
+
+########################################Code to Fill Company Ticker Database / Find industries with non-recent updates
+def from_DB_getUpdateableCompanyList(	DBFileName=YQLtmplts.FinDBFileName, 
+										updateableTimeLimit=TIME_BETWEEN_COMPANY_INFO_UPDATES):
+	# Open DB Connection
+	conn = sq.connect(DBFileName)
+	c = conn.cursor()
+	try:
+		# Get Time Delay
+		updateableTime = int(time.time()) - updateableTimeLimit;
+		# Generate Statement
+		getListCommand = (	'select txt_ticker from T_STOCK_INFORMATION where dt_date_retrieved < ' + str(updateableTime) +
+							' and txt_ticker not like "%.%"')
+		# Execute Statement
+		c.execute(getListCommand)
+		companyList = c.fetchall()
+		# Flatten List
+		companyList = [record[0] for record in companyList]
+		# Return Data
+		return companyList
+	except:
+		raise
+	finally:
+		# Close DB Connection
+		conn.close()
+
+########################################Code to Fill Company Ticker Database / Find Exchange
+def from_YQL_getCompanyExchangeVolumeMktCap(tickerList):
+	# Read Data from Yahoo as JSON query
+	url = YQLtmplts.createFriendlyURL(YQLtmplts.EXCHANGE_FROM_SYMBOL_TEMPLATE_URL, tickerList=tickerList)
+	raw_data = urllib2.urlopen(url).read()	
+	queryResult = json.loads(raw_data)['query']['results']['quote']
+	writeRows = {}
+	try:
+		# Parse Query Results
+		if type(queryResult) is dict:
+			queryResult = [queryResult]
+		# Parse Query Results / Read Company
+		for stock in queryResult:
+				# Parse Query Results / Read Company / Handle Null Results
+				exchange = finDB.SQL_NULL if stock['StockExchange'] is None else stock['StockExchange']
+				mktCap = finDB.SQL_NULL if stock['MarketCapitalization'] is None else YQLtmplts.shorthand2i(stock['MarketCapitalization'])
+				vol = finDB.SQL_NULL if stock['AverageDailyVolume'] is None else stock['AverageDailyVolume']
+				# Parse Query Results / Read Company / Append to Row
+				writeRows[stock['symbol']] = {	'exchange':exchange,
+												'mktCap':mktCap,
+												'avgVol':vol
+				}
+		return writeRows
+	except:
+		print "**** **** **** **** " + "total queryResult"
+		pprint.pprint(queryResult)
+		print "**** **** **** **** " + "specific stock queryResult"
+		pprint.pprint(stock)
+		raise
+
+
+########################################Code to Fill Company Ticker Database / Find Start and End Trading Dates, (And Number of Employees)
+def from_YQL_getCompanyStartEndTradingDates(tickerList):
+	# Read Data from Yahoo as JSON query
+	url = YQLtmplts.createFriendlyURL(YQLtmplts.STOCKS_START_END_TRADING_URL, tickerList=tickerList)
+	raw_data = urllib2.urlopen(url).read()	
+	queryResult = json.loads(raw_data)['query']['results']['stock']
+	writeRows = {}
+	try:
+		# Parse Query Results
+		if type(queryResult) is dict:
+			queryResult = [queryResult]
+		# Parse Query Results / Read Company
+		for stock in queryResult:
+				try:
+					numEmployees = int(stock['FullTimeEmployees'])
+				except:
+					numEmployees = finDB.SQL_NULL
+				try:
+					start = YQLtmplts.dtConvert_YMDtoEpoch(stock['start'])
+				except:
+					start = finDB.SQL_NULL
+				try:
+					end = YQLtmplts.dtConvert_YMDtoEpoch(stock['end'])
+				except:
+					end = finDB.SQL_NULL
+				writeRows[stock['symbol']] = {	'startTrade':start, 
+												'endTrade':end, 
+												'FullTimeEmployees': numEmployees}
+		return writeRows
+	except:
+		print "**** **** **** **** " + "total queryResult"
+		pprint.pprint(queryResult)
+		print "**** **** **** **** " + "specific stock queryResult"
+		pprint.pprint(stock)
+		raise
 
 #Download Income Statement, Balance Sheet, and Cash Flow Statement
-def downloadBasicFinancialStatementData(symbolList, statementName):
+def downloadBasicFinancialStatementData(tickerList, statementName):
     # Read Data from Yahoo as JSON query
-    url = YQLtmplts.createFriendlyURL(YQLtmplts.BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL,statementName = statementName,symbolList = symbolList)
+    url = YQLtmplts.createFriendlyURL(YQLtmplts.BASIC_FINANCIAL_STATEMENT_TEMPLATE_URL,statementName=statementName,tickerList=tickerList)
     raw_data = urllib2.urlopen(url).read()
     queryResult = json.loads(raw_data)['query']
-    if queryResult['count'] != len(symbolList):
+    if queryResult['count'] != len(tickerList):
         raise NotImplementedError #Throw better error
         pass
     # Find Expected Data Points
@@ -147,15 +291,18 @@ def to_DB_updateIndustryUpdateTime(conn, cursor, nowTime, industryID, industryNa
 
 
 ########################################Code to Fill Company Ticker Database
-def to_DB_fillTickerDatabase(industryUpdateLimit=COMPANY_LIST_INDUSTRY_UPDATE_LIMIT, DBFileName=YQLtmplts.FinDBFileName, verbose=False):
+def to_DB_fillTickerDatabase(industryUpdateLimit=SECTOR_LIST_INDUSTRY_UPDATE_LIMIT, DBFileName=YQLtmplts.FinDBFileName, verbose=False):
 	# Grab a few Industries to Update
 	UpdateableIndustries = from_DB_getUpdateableIndustryList(DBFileName=DBFileName, updateableTimeLimit=TIME_BETWEEN_COMPANY_LIST_UPDATES)
-	print 'There are ' + str(len(UpdateableIndustries)) + ' sectors that need updating.'
+	numRemaining = len(UpdateableIndustries)
+	print 'There are ' + str(numRemaining) + ' sectors that need updating.'
 	UpdateableIndustries = UpdateableIndustries[0:industryUpdateLimit]
-	print 'This update will update the following industry IDs: ' + str(UpdateableIndustries)
+	numUpdating = len(UpdateableIndustries)
+	print 'This update will update the following ' + str(numUpdating) + ' industry IDs: ' + str(UpdateableIndustries)
 	# Open DB Connection
 	conn = sq.connect(DBFileName)
 	c = conn.cursor()
+	numSuccesses = 0
 	try:
 		now = str(int(time.time()))
 		for industryID in UpdateableIndustries:
@@ -183,6 +330,8 @@ def to_DB_fillTickerDatabase(industryUpdateLimit=COMPANY_LIST_INDUSTRY_UPDATE_LI
 						str(tickerExistsCount) + ' companies in Industry ' + 
 						str(industryID) + ' (' + industryName  + ') to Ticker and StockInfo Tables')
 				to_DB_updateIndustryUpdateTime(conn, c, now, industryID, industryName, verbose=verbose)
+				numSuccesses += 1
+		return (numRemaining - numSuccesses) > 0
 	except:
 		raise
 	finally:
@@ -198,9 +347,9 @@ def from_DB_getUpdateableIndustryList(DBFileName=YQLtmplts.FinDBFileName, update
 		# Get Time Delay
 		updateableTime = int(time.time()) - updateableTimeLimit;
 		# Generate Statement
-		getCountCommand = 'select int_industry_id from T_SECTOR_INDUSTRY where dt_last_accessed < ' + str(updateableTime)
+		getListCommand = 'select int_industry_id from T_SECTOR_INDUSTRY where dt_last_accessed < ' + str(updateableTime)
 		# Execute Statement
-		c.execute(getCountCommand)
+		c.execute(getListCommand)
 		IndustryList = c.fetchall()
 		# Flatten List
 		IndustryList = [record[0] for record in IndustryList]
@@ -237,6 +386,8 @@ def from_YQL_getCompanyNamesByIndustry(idList):
 			# Parse Query Results / Read Industry / Read Company
 			for company in industry['company']:
 				# Parse Query Results / Read Industry / Read Company / Write Row Dictionary to List
+				if company['name'] == '':
+					company['name'] = company['symbol']
 				writeRows.append({	'ticker':company['symbol'], 
 									'companyName':company['name'], 
 									'industryID':industry['id'], 

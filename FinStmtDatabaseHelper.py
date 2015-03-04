@@ -3,9 +3,15 @@ import string
 import sqlite3 as sq
 from YQLFinanceTemplates import FinDBFileName as defaultDB
 
+
+SQL_NULL = 'NULL'
+
 ########################################Common Insert and Update Statements
 def stringify(someString):
-	return '"' + someString + '"'
+	if (someString == SQL_NULL) or (someString[0] is '"') or (someString[0] is "'"):
+		return someString
+	else:
+		return '"' + someString + '"'
 
 def generateInsertStatement(table, columns, values):
 	columnsString = ' ( ' + string.join(columns,', ') + ' ) '
@@ -22,29 +28,19 @@ def generateUpdateStatement(table, setColumns, setValues, whereColumns, whereVal
 def get_insert_SectorIndustryInfo_into_SectorIndustryDB_Statement(indID, indName, sectName):
 	table = 'T_SECTOR_INDUSTRY';
 	columns = ['int_industry_id','txt_industry_name','txt_sector_name']
-	if (sectName[0] is not '"') and (sectName[0] is not "'"):
-		sectName = stringify(sectName)
-	if (indName[0] is not '"') and (indName[0] is not "'"):
-		indName = stringify(indName)
-	values = [str(indID), indName, sectName]
+	values = [str(indID), stringify(indName), stringify(sectName)]
 	return generateInsertStatement(table, columns, values)
 
 def get_insert_Ticker_into_TickerDB_Statement(compTicker):
 	table = 'T_TICKER';
 	columns = ['txt_ticker']
-	if (compTicker[0] is not '"') and (compTicker[0] is not "'"):
-		compTicker = stringify(compTicker)
-	values = [compTicker]
+	values = [stringify(compTicker)]
 	return generateInsertStatement(table, columns, values)
 
 def get_insert_Basics_into_StockInfoDB_Statement(compTicker, compName, indID):
 	table = 'T_STOCK_INFORMATION';
 	columns = ['txt_ticker', 'txt_company_name', 'int_industry_id']
-	if (compTicker[0] is not '"') and (compTicker[0] is not "'"):
-		compTicker = stringify(compTicker)
-	if (compName[0] is not '"') and (compName[0] is not "'"):
-		compName = stringify(compName)
-	values = [compTicker, compName, str(indID)]
+	values = [stringify(compTicker), stringify(compName), str(indID)]
 	return generateInsertStatement(table, columns, values)
 
 def get_update_ReadTime_into_SectorIndustryDB_Statement(time, indID):
@@ -54,6 +50,38 @@ def get_update_ReadTime_into_SectorIndustryDB_Statement(time, indID):
 	whereColumns = ['int_industry_id']
 	whereValues = [str(indID)]
 	return generateUpdateStatement(table, setColumns, setValues, whereColumns, whereValues)
+
+def get_update_into_StockInfoDB_Statement(compTicker, compExchange, compMktCap, compAvgVol, compStartTrade, compEndTrade, updateTime):
+	table = 'T_STOCK_INFORMATION';
+	setColumns = ['txt_exchange', 'int_market_cap', 'int_average_daily_vol', 'dt_start_trading', 'dt_end_trading', 'dt_date_retrieved']
+	setValues = [stringify(compExchange), str(compMktCap), str(compAvgVol), str(compStartTrade), str(compEndTrade), str(updateTime)]
+	whereColumns = ['txt_ticker']
+	whereValues = [stringify(compTicker)]
+	return generateUpdateStatement(table, setColumns, setValues, whereColumns, whereValues)
+
+# def get_update_ExchangeEtc_into_StockInfoDB_Statement(compTicker, compExchange, compMktCap, compAvgVol):
+# 	table = 'T_STOCK_INFORMATION';
+# 	setColumns = ['txt_exchange', 'int_market_cap', 'int_average_daily_vol']
+# 	setValues = [stringify(compExchange), str(compMktCap), str(compAvgVol)]
+# 	whereColumns = ['txt_ticker']
+# 	whereValues = [stringify(compTicker)]
+# 	return generateUpdateStatement(table, setColumns, setValues, whereColumns, whereValues)
+
+# def get_update_StartEndDates_into_StockInfoDB_Statement(compTicker, startDate, endDate):
+# 	table = 'T_STOCK_INFORMATION';
+# 	setColumns = ['dt_start_trading', 'dt_end_trading']
+# 	setValues = [str(startDate), str(endDate)]
+# 	whereColumns = ['txt_ticker']
+# 	whereValues = [stringify(compTicker)]
+# 	return generateUpdateStatement(table, setColumns, setValues, whereColumns, whereValues)
+
+# def get_update_ReadTime_into_StockInfoDB_Statement(time, compTicker):
+# 	table = 'T_STOCK_INFORMATION'
+# 	setColumns = ['dt_date_retrieved']
+# 	setValues = [str(time)]
+# 	whereColumns = ['txt_ticker']
+# 	whereValues = [compTicker]
+# 	return generateUpdateStatement(table, setColumns, setValues, whereColumns, whereValues)
 
 ########################################Useful Select Statements
 def checkIfTickerAlreadyInDB(conn, cursor, compTicker, verbose = False):
